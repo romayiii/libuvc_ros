@@ -52,7 +52,9 @@ CameraDriver::CameraDriver(ros::NodeHandle nh, ros::NodeHandle priv_nh)
     it_(nh_),
     config_server_(mutex_, priv_nh_),
     config_changed_(false),
-    cinfo_manager_(nh) {
+    cinfo_manager_(nh),
+    pub_every_n_th_image_(1)
+{
   cam_pub_ = it_.advertiseCamera("image_raw", 1, false);
 }
 
@@ -143,6 +145,9 @@ void CameraDriver::ReconfigureCallback(UVCCameraConfig &new_config, uint32_t lev
         new_config.tilt_absolute = config_.tilt_absolute;
       }
     }
+    
+    pub_every_n_th_image_ = new_config.pub_every_n_th_image;
+    
     // TODO: roll_absolute
     // TODO: privacy
     // TODO: backlight_compensation
@@ -162,6 +167,15 @@ void CameraDriver::ReconfigureCallback(UVCCameraConfig &new_config, uint32_t lev
 }
 
 void CameraDriver::ImageCallback(uvc_frame_t *frame) {
+    
+  static int counter = 0;
+  
+  counter++;
+  
+  if (counter % pub_every_n_th_image_ != 0)
+      return;
+
+  
   ros::Time timestamp = ros::Time(frame->capture_time.tv_sec, frame->capture_time.tv_usec);
   if ( timestamp == ros::Time(0) ) {
     timestamp = ros::Time::now();

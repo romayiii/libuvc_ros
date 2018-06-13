@@ -71,6 +71,8 @@ private:
   dynamic_reconfigure::Server<UVCCameraConfig> config_server_;
   UVCCameraConfig config_;
   bool config_changed_;
+  
+  int pub_every_n_th_image_;
 
   camera_info_manager::CameraInfoManager cinfo_manager_;
 };
