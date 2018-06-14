@@ -57,8 +57,8 @@ CameraDriver::CameraDriver(ros::NodeHandle nh, ros::NodeHandle priv_nh)
     pub_every_n_th_image_(1)
 {
   
-  jpeg_pub_ = nh_.advertise<sensor_msgs::CompressedImage>("compressed/image_raw/compressed", 1);
-  cinfo_pub_ = nh_.advertise<sensor_msgs::CameraInfo>("compressed/camera_info", 1);
+  jpeg_pub_ = priv_nh.advertise<sensor_msgs::CompressedImage>("compressed/image_raw/", 1);
+  cinfo_pub_ = priv_nh.advertise<sensor_msgs::CameraInfo>("compressed/camera_info", 1);
   
   cam_pub_ = it_.advertiseCamera("image_raw", 1, false);
   
@@ -261,16 +261,24 @@ void CameraDriver::ImageCallback(uvc_frame_t *frame) {
     cam_pub_.publish(image, cinfo);
   }
   
-  if (compressed_pub_subscribed && frame->frame_format == UVC_FRAME_FORMAT_MJPEG) {
-    sensor_msgs::CompressedImage::Ptr cimage(new sensor_msgs::CompressedImage());
-    cimage->format = "jpeg";
-    cimage->data.resize(frame->data_bytes);
-    memcpy(&(cimage->data[0]), frame->data, frame->data_bytes);
-    jpeg_pub_.publish(cimage);
+  if (compressed_pub_subscribed){
+    if (frame->frame_format == UVC_FRAME_FORMAT_MJPEG) {
+      sensor_msgs::CompressedImage::Ptr cimage(new sensor_msgs::CompressedImage());
+      cimage->format = "jpeg";
+      cimage->data.resize(frame->data_bytes);
+      memcpy(&(cimage->data[0]), frame->data, frame->data_bytes);
+      jpeg_pub_.publish(cimage);
+    }else{
+      ROS_WARN_THROTTLE(5.0,"Tried to subscribe compressed image, but not in MJPEG mode, not publishing!");   
+    }
   }
   
   if (cinfo_pub_subscribed) {
+    if (frame->frame_format == UVC_FRAME_FORMAT_MJPEG){
       cinfo_pub_.publish(cinfo);
+    }else{
+      ROS_WARN_THROTTLE(5.0,"Tried to subscribe CameraInfo for compressed image, but not in MJPEG mode, not publishing!");      
+    }
   }
   
   if (config_changed_) {
