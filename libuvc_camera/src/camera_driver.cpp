@@ -56,6 +56,19 @@ CameraDriver::CameraDriver(ros::NodeHandle nh, ros::NodeHandle priv_nh)
     cinfo_manager_(nh),
     pub_every_n_th_image_(1)
 {
+    
+  priv_nh.param<double>("diagnostics_freq_min", diagnostics_freq_min_, 0.0);
+  priv_nh.param<double>("diagnostics_freq_max", diagnostics_freq_max_, 500.0);
+
+    
+  diagnostic_updater_.reset(new diagnostic_updater::Updater);
+  //@TODO: Proper camera name
+  diagnostic_updater_->setHardwareID(priv_nh.getNamespace());
+  
+  img_pub_freq_.reset(new diagnostic_updater::HeaderlessTopicDiagnostic("Image Pub Frequency",
+          *diagnostic_updater_,
+          diagnostic_updater::FrequencyStatusParam(&diagnostics_freq_min_, &diagnostics_freq_max_)));
+  
   
   jpeg_pub_ = priv_nh.advertise<sensor_msgs::CompressedImage>("compressed/image_raw/", 1);
   cinfo_pub_ = priv_nh.advertise<sensor_msgs::CameraInfo>("compressed/camera_info", 1);
@@ -280,6 +293,9 @@ void CameraDriver::ImageCallback(uvc_frame_t *frame) {
       ROS_WARN_THROTTLE(5.0,"Tried to subscribe CameraInfo for compressed image, but not in MJPEG mode, not publishing!");      
     }
   }
+  
+  img_pub_freq_->tick();
+  diagnostic_updater_->update();
   
   if (config_changed_) {
     config_server_.updateConfig(config_);

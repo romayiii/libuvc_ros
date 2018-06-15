@@ -11,6 +11,9 @@
 
 #include <libuvc_camera/UVCCameraConfig.h>
 
+#include <diagnostic_updater/diagnostic_updater.h>
+#include <diagnostic_updater/publisher.h>
+
 namespace libuvc_camera {
 
 class CameraDriver {
@@ -77,6 +80,13 @@ private:
   int pub_every_n_th_image_;
 
   camera_info_manager::CameraInfoManager cinfo_manager_;
+  
+  
+   // Diagnostics
+   boost::shared_ptr<diagnostic_updater::Updater> diagnostic_updater_;
+   boost::shared_ptr<diagnostic_updater::HeaderlessTopicDiagnostic> img_pub_freq_;
+   double diagnostics_freq_min_;
+   double diagnostics_freq_max_;
 };
 
 };

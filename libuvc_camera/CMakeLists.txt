@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(libuvc_camera)
 # Load catkin and all dependencies required for this package
-find_package(catkin REQUIRED COMPONENTS roscpp camera_info_manager dynamic_reconfigure image_transport nodelet sensor_msgs)
+find_package(catkin REQUIRED COMPONENTS roscpp camera_info_manager dynamic_reconfigure image_transport nodelet sensor_msgs diagnostic_updater)
 
 generate_dynamic_reconfigure_options(cfg/UVCCamera.cfg)
 
@@ -17,6 +17,7 @@ catkin_package(
     image_transport
     nodelet
     sensor_msgs
+    diagnostic_updater
   LIBRARIES libuvc_camera_nodelet
   )
 
