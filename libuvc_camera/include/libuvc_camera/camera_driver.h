@@ -25,6 +25,10 @@ public:
   void Stop();
 
 private:
+  
+  void watchdogFunction(double loop_rate);
+  void runWatchdog();
+  
   enum State {
     kInitial = 0,
     kStopped = 1,
@@ -87,6 +91,12 @@ private:
    boost::shared_ptr<diagnostic_updater::HeaderlessTopicDiagnostic> img_pub_freq_;
    double diagnostics_freq_min_;
    double diagnostics_freq_max_;
+   
+   // Outage watchdog
+   boost::shared_ptr<boost::thread> watchdog_thread_;
+   double allowed_outage_duration_;
+   ros::Time last_image_retrieve_time_;
+   boost::recursive_mutex last_image_retrieve_time_mutex_;
 };
 
 };

@@ -100,6 +100,11 @@ bool CameraDriver::Start() {
   state_ = kStopped;
 
   config_server_.setCallback(boost::bind(&CameraDriver::ReconfigureCallback, this, _1, _2));
+  
+  // No need to mutex protect as watchdog thread is not yet running
+  last_image_retrieve_time_ = ros::Time::now();
+  
+  watchdog_thread_.reset(new boost::thread(boost::bind(&CameraDriver::watchdogFunction, this, 0.25)));
 
   return state_ == kRunning;
 }
@@ -116,8 +121,36 @@ void CameraDriver::Stop() {
 
   uvc_exit(ctx_);
   ctx_ = NULL;
+  
+  watchdog_thread_->join();
 
   state_ = kInitial;
+}
+
+void CameraDriver::watchdogFunction(double loop_rate)
+{
+  ros::Rate r(loop_rate);
+
+  // This isn't completely clean and should be protected by a mutex
+  while(state_ == kRunning)
+  {
+    this->runWatchdog();
+    r.sleep();
+  }
+}
+
+void CameraDriver::runWatchdog()
+{
+  ros::Time now = ros::Time::now();
+  
+  boost::recursive_mutex::scoped_lock(last_image_retrieve_time_mutex_);
+  
+  double outage_duration = (now - last_image_retrieve_time_).toSec();
+  
+  if (outage_duration > allowed_outage_duration_ ){
+    ROS_ERROR_STREAM("No cam image received since" << outage_duration << "s (allowed: " << allowed_outage_duration_ << " s), exiting!");
+    std::terminate();
+  }
 }
 
 void CameraDriver::ReconfigureCallback(UVCCameraConfig &new_config, uint32_t level) {
@@ -166,6 +199,7 @@ void CameraDriver::ReconfigureCallback(UVCCameraConfig &new_config, uint32_t lev
     }
     
     pub_every_n_th_image_ = new_config.pub_every_n_th_image;
+    allowed_outage_duration_ = new_config.allowed_outage_duration;
     
     // TODO: roll_absolute
     // TODO: privacy
@@ -190,6 +224,11 @@ void CameraDriver::ImageCallback(uvc_frame_t *frame) {
   bool cam_pub_subscribed = (cam_pub_.getNumSubscribers() > 0);  
   bool compressed_pub_subscribed = (jpeg_pub_.getNumSubscribers() > 0);
   bool cinfo_pub_subscribed = (cinfo_pub_.getNumSubscribers() > 0);
+  
+  {
+    boost::recursive_mutex::scoped_lock(last_image_retrieve_time_mutex_);
+    last_image_retrieve_time_ = ros::Time::now();
+  }
   
   if (!cam_pub_subscribed && !compressed_pub_subscribed && !cinfo_pub_subscribed)
     return;
