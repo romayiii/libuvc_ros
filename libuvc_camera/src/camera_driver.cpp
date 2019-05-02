@@ -148,7 +148,7 @@ void CameraDriver::runWatchdog()
   double outage_duration = (now - last_image_retrieve_time_).toSec();
   
   if (outage_duration > allowed_outage_duration_ ){
-    ROS_ERROR_STREAM("No cam image received since" << outage_duration << "s (allowed: " << allowed_outage_duration_ << " s), exiting!");
+    ROS_ERROR_STREAM("No cam image received since " << outage_duration << "s (allowed: " << allowed_outage_duration_ << " s), exiting!");
     std::terminate();
   }
 }
