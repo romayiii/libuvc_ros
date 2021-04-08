@@ -110,7 +110,7 @@ bool CameraDriver::Start() {
 }
 
 void CameraDriver::Stop() {
-  boost::recursive_mutex::scoped_lock(mutex_);
+  boost::recursive_mutex::scoped_lock lock(mutex_);
 
   assert(state_ != kInitial);
 
@@ -154,7 +154,7 @@ void CameraDriver::runWatchdog()
 }
 
 void CameraDriver::ReconfigureCallback(UVCCameraConfig &new_config, uint32_t level) {
-  boost::recursive_mutex::scoped_lock(mutex_);
+  boost::recursive_mutex::scoped_lock lock(mutex_);
 
   if ((level & kReconfigureClose) == kReconfigureClose) {
     if (state_ == kRunning)
@@ -241,12 +241,12 @@ void CameraDriver::ImageCallback(uvc_frame_t *frame) {
     return;
 
   
-  ros::Time timestamp = ros::Time(frame->capture_time.tv_sec, frame->capture_time.tv_usec);
+  ros::Time timestamp = ros::Time(frame->capture_time.tv_sec, frame->capture_time.tv_usec * 1000);
   if ( timestamp == ros::Time(0) ) {
     timestamp = ros::Time::now();
   }
 
-  boost::recursive_mutex::scoped_lock(mutex_);
+  boost::recursive_mutex::scoped_lock lock(mutex_);
 
   assert(state_ == kRunning);
   assert(rgb_frame_);
@@ -264,7 +264,22 @@ void CameraDriver::ImageCallback(uvc_frame_t *frame) {
     image->encoding = "rgb8";
     memcpy(&(image->data[0]), frame->data, frame->data_bytes);
   } else if (frame->frame_format == UVC_FRAME_FORMAT_UYVY) {
-    image->encoding = "yuv422";
+    uvc_error_t conv_ret = uvc_uyvy2bgr(frame, rgb_frame_);
+    if (conv_ret != UVC_SUCCESS) {
+      uvc_perror(conv_ret, "Couldn't convert frame to RGB");
+      return;
+    }
+    image->encoding = "bgr8";
+    memcpy(&(image->data[0]), rgb_frame_->data, rgb_frame_->data_bytes);
+  } else if (frame->frame_format == UVC_FRAME_FORMAT_GRAY8) {
+    image->encoding = "8UC1";
+    image->step = image->width;
+    image->data.resize(image->step * image->height);
+    memcpy(&(image->data[0]), frame->data, frame->data_bytes);
+  } else if (frame->frame_format == UVC_FRAME_FORMAT_GRAY16) {
+    image->encoding = "16UC1";
+    image->step = image->width*2;
+    image->data.resize(image->step * image->height);
     memcpy(&(image->data[0]), frame->data, frame->data_bytes);
   } else if (frame->frame_format == UVC_FRAME_FORMAT_YUYV) {
     // FIXME: uvc_any2bgr does not work on "yuyv" format, so use uvc_yuyv2bgr directly.
@@ -355,7 +370,7 @@ void CameraDriver::AutoControlsCallback(
   int selector,
   enum uvc_status_attribute status_attribute,
   void *data, size_t data_len) {
-  boost::recursive_mutex::scoped_lock(mutex_);
+  boost::recursive_mutex::scoped_lock lock(mutex_);
 
   printf("Controls callback. class: %d, event: %d, selector: %d, attr: %d, data_len: %zu\n",
          status_class, event, selector, status_attribute, data_len);
@@ -421,6 +436,8 @@ enum uvc_frame_format CameraDriver::GetVideoMode(std::string vmode){
     return UVC_COLOR_FORMAT_MJPEG;
   } else if (vmode == "gray8") {
     return UVC_COLOR_FORMAT_GRAY8;
+  } else if (vmode == "gray16") {
+    return UVC_COLOR_FORMAT_GRAY16;
   } else {
     ROS_ERROR_STREAM("Invalid Video Mode: " << vmode);
     ROS_WARN_STREAM("Continue using video mode: uncompressed");
