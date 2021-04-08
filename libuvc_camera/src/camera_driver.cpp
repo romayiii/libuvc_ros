@@ -316,6 +316,7 @@ void CameraDriver::ImageCallback(uvc_frame_t *frame) {
   if (compressed_pub_subscribed){
     if (frame->frame_format == UVC_FRAME_FORMAT_MJPEG) {
       sensor_msgs::CompressedImage::Ptr cimage(new sensor_msgs::CompressedImage());
+      cimage->header = image->header;
       cimage->format = "jpeg";
       cimage->data.resize(frame->data_bytes);
       memcpy(&(cimage->data[0]), frame->data, frame->data_bytes);
